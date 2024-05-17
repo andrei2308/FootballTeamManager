@@ -1,0 +1,556 @@
+#!/bin/bash
+
+# Defineste numele si path-ul fisierului
+csv="mydata.csv"
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# Functie creare si extindere fisier csv
+function creeaza {
+clear
+  echo "Optiunea 1 selectata: creeaza fisier csv ."
+  read -p "Introduceti numele fisierului de tip CSV pe care doriti sa il creati:" csv
+  if [ ! -f "$csv" ]; then
+    echo "Id,nume,salariu,varsta,pozitie,email,scor sezon" > "$csv"
+    echo "Fisierul $csv a fost creat"
+  else
+    echo "Fisierul $csv deja exista"
+  fi
+}
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+function afisare {
+if [ -f "$csv" ]; then
+tail -n +2 "$csv"
+else
+echo "Fisierul nu a fost inca creat sau definit."
+fi
+}
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# adaugare inregistrare cu id
+function adaugare_record {
+clear
+  echo "Optiunea 2 selectata: adauga o inregistrare"
+
+  # Initializeaza variabile
+  nume=""
+  varsta=""
+  pozitie=""
+  salariu=""
+  email=""
+  scor=""
+
+  # validare campuri
+  while true; do
+    read -p "Introduceti numele: " nume
+    if echo "$nume" | grep -Eq "^[a-zA-Z ]+$"; then
+      break
+    else
+      echo "Nume invaild. Doar literele sunt permise ."
+    fi
+  done
+
+  while true; do
+  read -p "Introduceti varsta : " varsta
+  if echo "$varsta" | grep -Eq "^[0-9]+$" && ((varsta >= 14 && varsta <= 60)); then
+    break
+  else
+    echo "Varsta invalida."
+  fi
+done
+
+  while true; do
+  read -p "Introduceti pozitia pe care joaca jucatorul : " pozitie
+  if echo "$pozitie" | grep -Eq "^(portar|fundas|mijlocas|atacant)$"; then
+    break
+  else
+    echo "Pozitie invalida. Pozitiile valide sunt: 'portar' , 'fundas' , 'mijlocas' , 'atacant' ."
+  fi
+done
+
+  while true; do
+    read -p "Introduceti salariul: " salariu
+    if echo "$salariu" | grep -Eq "^[0-9.,]+$"; then
+      break
+    else
+      echo "Salariu invalid. Doar caracterele de tip cifra, ' . ' si ' , ' sunt permise."
+    fi
+  done
+
+  while true; do
+    read -p "Introduceti adresa de email: " email
+    if echo "$email" | grep -Eq "^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$"; then
+      break
+    else
+      echo "Adresa de email invalida. Va rugam introduceti alta adresa ."
+    fi
+  done
+
+  while true; do
+  read -p "Introduceti nota medie obtinuta in acest sezon: " scor
+  if echo "$scor" | grep -Eq "^[0-9.,]+$" && ((scor >= 1 && scor <= 10)); then
+    break
+  else
+    echo "Nota invalida. Notele posibile sunt intre 1 si 10 ."
+  fi
+done
+
+
+  # generare id unic pentru fiecare inregistrare
+  id=$(($(tail -n 1 "$csv" | cut -d',' -f1) + 1))
+
+  # adaugare inregistrare in fisier
+  echo "$id,$nume,$varsta,$pozitie,$salariu,$email,$scor" >> "$csv"
+
+  echo "Inregistrarea a fost adaugata cu succes in $csv, avand id-ul: $id"
+}
+
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# Function to delete a record
+function stergere {
+clear
+  echo "Optiunea 3 selectata: sterge o inregistrare ."
+
+  read -p "Introduceti id-ul inregistrarii pe care doriti sa o stergeti: " sterge_id
+
+  # verifica daca fisierul exista
+  if [ ! -f "$csv" ]; then
+    echo "Fisierul nu exista."
+    return
+  fi
+
+  # Verifica daca id-ul este valid
+  if ! grep -q "^$sterge_id," "$csv"; then
+    echo "Record with ID $sterge_id does not exist."
+    return
+  fi
+
+  # creare fisier temporar pentru modificare
+  temp_file="temp.csv"
+
+  # copiaza toate inregistrarile, mai putin cea ce trebuie stearsa
+  grep -v "^$sterge_id," "$csv" > "$temp_file"
+
+  # updatam id-urile in fisierul temporar pentru a fi consecutive
+  awk -F, -v OFS=',' -v deleted_id="$sterge_id" '
+    $1 > deleted_id { $1 -= 1 }
+    { print }
+  ' "$temp_file" > "$csv"
+
+  # stergem fisierul temporar
+  rm "$temp_file"
+
+  echo "Inregistrarea cu id-ul $sterge_id a fost stearsa."
+}
+
+# meniu sortare
+function meniu_sortare {
+clear
+  echo "Selecteaza un criteriu :"
+  echo "1. nume"
+  echo "2. varsta"
+  echo "3. pozitie"
+  echo "4. salariu"
+  echo "5. Email"
+  echo "6. Medium scor this season"
+}
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# sortare
+# sortare dupa nume
+# sortare dupa varsta
+# sortare dupa salariu
+# sortare dupa email
+# sortare dupa scor mediu
+function sortare_scor {
+  # sortare in ordine crescatoare
+  date_sortate=$(tail -n +2 "$csv" | sort -t',' -k7,7n)
+
+  read -p "Introduceti valoarea minima a scorului dupa care sa fie sortate celelalte scoruri (apasati enter si lasati gol, pentru a le sorta pe toate, in ordine crescatoare) : " scor_minim
+
+  if [[ -n $scor_minim ]]; then
+    # sorteaza dupa scorul luat de la tastatura
+    date_sortate=$(echo "$date_sortate" | awk -F',' -v scor="$scor_minim" '$7 >= scor')
+  fi
+
+  read -p "Doriti ca datele sortate sa fie salvate in alt fisier? [Y/N]: " salvare_optiune
+
+  case $salvare_optiune in
+    [Yy])
+      read -p "Scrieti numele fisierului in care doriti sa fie salvate datele sortate: " document_sortare
+      echo "$date_sortate" > "$document_sortare"
+      echo "Datele sortate au fost salvate in $document_sortare. Deschideti fisierul din consola principala, pentru a vedea datele."
+      ;;
+    [Nn])
+      echo "$date_sortate"
+      ;;
+    *)
+      echo "Optiune invalida. Datele sortate nu vor fi salvate ."
+      ;;
+  esac
+}
+
+function sortare_mail {
+  read -p "Introduceti numele dupa care sa fie sortate adresele de email: " filter_nume
+
+  # sorteaza dupa nume
+  date_sortate=$(tail -n +2 "$csv" | awk -F',' -v nume="$filter_nume" '$6 ~ nume' | sort -t',' -k6,6)
+
+  read -p "Doriti ca datele sortate sa fie salvate in alt fisier? [Y/N]: " salvare_optiune
+
+  case $salvare_optiune in
+    [Yy])
+      read -p "Scrieti numele fisierului in care doriti sa fie salvate : " document_sortare
+      echo "$date_sortate" > "$document_sortare"
+      echo "Datele sortate au fost salvate in $document_sortare. Pentru a le vedea, accesati fisierul din consola principala ."
+      ;;
+    [Nn])
+      echo "$date_sortate"
+      ;;
+    *)
+      echo "Optiune invalida. Datele nu vor fi salvate ."
+      ;;
+  esac
+}
+
+function sortare_salariu {
+  echo "Sortare dupa salariu ."
+  echo "1. Sorteaza in ordine crescatoare ."
+  echo "2. Sorteaza salariile mai mari decat o valoare introdusa de la tastatura ."
+
+  read -p "Introduceti optiunea: " optiune_sortare
+
+  case $optiune_sortare in
+    1)
+      # sorteaza crescator
+      date_sortate=$(tail -n +2 "$csv" | sort -t',' -k5,5n)
+      ;;
+    2)
+      read -p "Introduceti valoarea : " salariu_value
+
+      # sortare dupa valoare
+      date_sortate=$(tail -n +2 "$csv" | awk -F',' -v salariu="$salariu_value" '$5 > salariu' | sort -t',' -k5,5n)
+      ;;
+    *)
+      echo "Optiune invalida. Datele sortate nu vor fi salvate ."
+      return
+      ;;
+  esac
+
+  read -p "Doriti ca datele sortate sa fie salvate in alt fisier? [Y/N]: " salvare_optiune
+
+  case $salvare_optiune in
+    [Yy])
+      read -p "Scrieti numele fisierului in care doriti sa fie salvate datele: " document_sortare
+      echo "$date_sortate" > "$document_sortare"
+      echo "Datele sortate au fost salvate in $document_sortare"
+      ;;
+    [Nn])
+      echo "$date_sortate"
+      ;;
+    *)
+      echo "Optiune invalida. Datele sortate nu vor fi salvate ."
+      ;;
+  esac
+}
+
+function sortare_pozitie {
+  read -p "Scrieti pozitia pe care doriti sa o extrageti : " pozitie_filter
+
+  # sortare dupa pozitie
+  date_sortate=$(tail -n +2 "$csv" | awk -F',' -v pozitie="$pozitie_filter" '$4 == pozitie' | sort -t',' -k2,2 -f)
+
+  read -p "Doriti ca datele sortate sa fie salvate in alt fisier? [Y/N]: " salvare_optiune
+
+  case $salvare_optiune in
+    [Yy])
+      read -p "Scrieti numele fisierului in care doriti sa fie salvate datele: " document_sortare
+      echo "$date_sortate" > "$document_sortare"
+      echo "Datele au fost salvate in $document_sortare"
+      ;;
+    [Nn])
+      echo "$date_sortate"
+      ;;
+    *)
+      echo "Optiune invalida. Datele sortate nu vor fi salvate ."
+      ;;
+  esac
+}
+
+function sortare_nume {
+  # sortare alfabetic
+  date_sortate=$(tail -n +2 "$csv" | sort -t',' -k2,2 -f)
+
+  read -p "Doriti ca datele sa fie salvate in alt fisier? [Y/N]: " salvare_optiune
+
+  case $salvare_optiune in
+    [Yy])
+      read -p "Scrieti numele fisierului in care doriti sa fie salvate datele: " document_sortare
+      echo "$date_sortate" > "$document_sortare"
+      echo "Datele sortate vor fi salvate in $document_sortare"
+      ;;
+    [Nn])
+      echo "$date_sortate"
+      ;;
+    *)
+      echo "Optiune invalida. Datele nu vor fi salvate"
+      ;;
+  esac
+}
+
+# sortare varsta ordine crescatoare
+function sortare_varsta_cresc {
+  # sortare crescator
+  date_sortate=$(tail -n +2 "$csv" | sort -t',' -k3,3n)
+
+  read -p "Doriti ca datele sortate sa fie salvate in alt fisier? [Y/N]: " salvare_optiune
+
+  case $salvare_optiune in
+    [Yy])
+      read -p "Scrieti numele fisierului in care doriti sa fie salvate datele: " document_sortare
+      echo "$date_sortate" > "$document_sortare"
+      echo "Datele au fost salvate in $document_sortare"
+      ;;
+    [Nn])
+      echo "$date_sortate"
+      ;;
+    *)
+      echo "Optiune invalida. Datele nu vor fi salvate ."
+      ;;
+  esac
+}
+
+# sortare mai mare egal
+function sortare_varsta_mai_mare {
+  read -p "Introduceti varsta minima: " varsta_value
+
+  # sortare mai mare egal
+  date_sortate=$(tail -n +2 "$csv" | awk -F',' -v varsta="$varsta_value" '$3 >= varsta')
+
+  read -p "Doriti ca datele sortate sa fie salvate in alt fisier? [Y/N]: " salvare_optiune
+
+  case $salvare_optiune in
+    [Yy])
+      read -p "Scrieti numele fisierului in care doriti sa fie salvate datele : " document_sortare
+      echo "$date_sortate" > "$document_sortare"
+      echo "Datele au fost salvate in $document_sortare"
+      ;;
+    [Nn])
+      echo "$date_sortate"
+      ;;
+    *)
+      echo "Optiune invalida. Datele nu au fost salvate ."
+      ;;
+  esac
+}
+
+# functia sefa
+function sort_data {
+  echo "Optiunea 4 selectata: sortare dupa un anumit criteriu ."
+
+  # meniu sortare
+  meniu_sortare
+
+  read -p "Alegeti numarul aferent criteriului dupa care doriti sa sortati datele: " sort_field
+
+  case $sort_field in
+    1)
+      echo "Sortare dupa nume ..."
+      sortare_nume
+      ;;
+    2)
+      echo "1. Sorteaza in ordine crescatoare" 
+      echo "2. Sorteaza dupa varsta mai mare decat:"
+      read -p "Introduceti varianta dorita:" optiune_sortare
+      case $optiune_sortare in
+      1) sortare_varsta_cresc ;;
+      2) sortare_varsta_mai_mare
+      ;;
+      esac
+      ;;
+    3)
+      echo "Sortare dupa pozitie ..."
+      sortare_pozitie
+      ;;
+    4)
+      echo "Sortare dupa salariu ..."
+      sortare_salariu
+      ;;
+    5)
+      echo "Sortare dupa email ..."
+      sortare_mail
+      ;;
+    6)
+      echo "Sortare dupa scorul mediu din acest sezon"
+      sortare_scor
+      ;;
+    *)
+      echo "Optiune invalida. Introduceti un numar care exista in meniu ."
+      sort_data
+      return
+      ;;
+  esac
+
+  echo "Datele au fost sortate cu succes ."
+}
+
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+function update {
+clear
+  echo "Optiunea 5 selectata: actualizeaza o inregistrare"
+
+  read -p "Introduceti id-ul inregistrarii pe care doriti sa o actualizati: " update_id
+
+  # verificam daca exista csv-ul
+  if [ ! -f "$csv" ]; then
+    echo "Fisierul csv nu exista."
+    return
+  fi
+
+  # verificam daca id-ul exista
+  if ! grep -q "^$update_id," "$csv"; then
+    echo "Inregistrarea cu id-ul $update_id nu exista ."
+    return
+  fi
+
+  # facem un fisier temporar
+  temp_file="temp.csv"
+
+  read -p "Selectati ce camp doriti sa actualizati:
+1. Nume
+2. Varsta
+3. Pozitie
+4. Salariu
+5. Email
+6. Scor mediu
+Introduceti optiunea dorita: " update_choice
+
+  case $update_choice in
+    1)
+      while true; do
+  read -p "Introduceti noul nume: " updated_nume
+  if echo "$updated_nume" | grep -Eq "^[a-zA-Z[:space:]]+$"; then
+    break
+  else
+    echo "Nume invalid. Doar literele sunt permise ."
+  fi
+done
+
+
+      awk -F, -v OFS=',' -v update_id="$update_id" -v updated_nume="$updated_nume" '$1 == update_id { $2 = updated_nume } { print }' "$csv" > "$temp_file"
+      ;;
+    2)
+      while true; do
+  read -p "Introduceti noua varsta: " updated_varsta
+  if echo "$updated_varsta" | grep -Eq "^[0-9]+$" && ((updated_varsta >= 14 && updated_varsta <= 60)); then
+    break
+  else
+    echo "Varsta invalida."
+  fi
+done
+
+      awk -F, -v OFS=',' -v update_id="$update_id" -v updated_varsta="$updated_varsta" '$1 == update_id { $3 = updated_varsta } { print }' "$csv" > "$temp_file"
+      ;;
+    3)
+      while true; do
+  read -p "Introduceti noua pozitie: " new_pozitie
+  if echo "$new_pozitie" | grep -Eq "^(portar|fundas|mijlocas|atacant)$"; then
+    break
+  else
+    echo "Pozitie invalida. Pozitiile sunt : portar,fundas,mijlocas,atacant ."
+  fi
+done
+      awk -F, -v OFS=',' -v update_id="$update_id" -v updated_pozitie="$updated_pozitie" '$1 == update_id { $4 = updated_pozitie } { print }' "$csv" > "$temp_file"
+      ;;
+    4)
+      while true; do
+        read -p "Introduceti noul salariu: " updated_salariu
+        if echo "$updated_salariu" | grep -Eq "^[0-9.,]+$"; then
+          break
+        else
+          echo "Salariu invalid ."
+        fi
+      done
+      awk -F, -v OFS=',' -v update_id="$update_id" -v updated_salariu="$updated_salariu" '$1 == update_id { $5 = updated_salariu } { print }' "$csv" > "$temp_file"
+      ;;
+    5)
+      while true; do
+        read -p "Introduceti noua adresa de email: " updated_email
+        if echo "$updated_email" | grep -Eq "^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$"; then
+          break
+        else
+          echo "Adresa invalida. Va rugam, introduceti alta adresa de email."
+        fi
+      done
+      awk -F, -v OFS=',' -v update_id="$update_id" -v updated_email="$updated_email" '$1 == update_id { $6 = updated_email } { print }' "$csv" > "$temp_file"
+      ;;
+    6)
+      while true; do
+  read -p "Introduceti noul scor mediu : " updated_scor
+  if echo "$updated_scor" | grep -Eq "^[0-9.,]+$" && ((updated_scor >= 1 && updated_scor <= 10)); then
+    break
+  else
+    echo "Scor invalid. Valoarea scorului trebuie sa fie intre 1 si 10 ."
+  fi
+done
+
+      awk -F, -v OFS=',' -v update_id="$update_id" -v updated_scor="$updated_scor" '$1 == update_id { $7 = updated_scor } { print }' "$csv" > "$temp_file"
+      ;;
+      
+    *)
+      echo "Input invalid."
+      return
+      ;;
+  esac
+
+  # inlocuim fisierul original cu cel temporar
+  mv "$temp_file" "$csv"
+
+  echo "Inregistrarea cu id-ul $update_id a fost actualizat cu succes ."
+
+  # vedem daca mai vrem sa facem schimbari
+  read -p "Mai doriti sa faceti alte schimbari? (Y/N): " make_more_changes
+
+  case $make_more_changes in
+    [Yy])
+      update
+      ;;
+    [Nn])
+      echo "Redirectionare la meniul principal"
+      ;;
+    *)
+      echo "Optiune invalida. Redirectionare la meniul principal ."
+      ;;
+  esac
+}
+
+
+
+
+
+#loop meniu
+while true; do
+  echo "Va rugam alegeti o optiune:"
+  echo "1. Creeaza fisier csv"
+  echo "2. Adauga o inregistrare"
+  echo "3. Sterge o inregistrare"
+  echo "4. Sortare dupa un anumit criteriu"
+  echo "5. Actualizeaza o inregistrare"
+  echo "6. Afiseaza inregistrarile"
+  echo "7. Iesire"
+
+  read -p "Introduceti optiunea: " option
+
+  # apelam functiile
+  case $option in
+    1) creeaza;;
+    2) adaugare_record;;
+    3) stergere;;
+    4) sort_data;;
+    5) update;;
+    6) afisare;;
+    7) break;;
+    *) echo "Optiune invalida. Incercati din nou . ";;
+  esac
+
+  # mesaj iesire
+  echo ""
+done
+
+echo "La revedere !"
