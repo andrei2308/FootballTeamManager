@@ -1,4 +1,4 @@
-# Linux Repository
+# Football team manager Repository
 
 This repository contains a shell script designed to manage a football team's roster. The script allows users to add, remove, and display players, providing a simple interface for team management.
 
